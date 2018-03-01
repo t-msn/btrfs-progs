@@ -488,6 +488,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	int is_only_in_path = 0;
 	DIR *dirstream = NULL;
 	enum btrfs_list_layout layout = BTRFS_LIST_LAYOUT_DEFAULT;
+	uid_t uid;
 
 	filter_set = btrfs_list_alloc_filter_set();
 	comparer_set = btrfs_list_alloc_comparer_set();
@@ -593,6 +594,13 @@ static int cmd_subvol_list(int argc, char **argv)
 	if (fd < 0) {
 		ret = -1;
 		error("can't access '%s'", subvol);
+		goto out;
+	}
+
+	uid = geteuid();
+	if (uid != 0 && is_list_all) {
+		ret = -1;
+		error("only root can use -a option");
 		goto out;
 	}
 
