@@ -1804,7 +1804,7 @@ static int btrfs_list_subvols(int fd, struct root_lookup *root_lookup,
 	int ret;
 
 	uid = geteuid();
-	if (!uid) {
+	if (uid == 0) {
 		ret = list_subvol_search(fd, root_lookup);
 		if (ret) {
 			error("can't perform the search: %s", strerror(-ret));
