@@ -620,7 +620,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	btrfs_list_setup_print_column(BTRFS_LIST_PATH);
 
 	ret = btrfs_list_subvols_print(fd, filter_set, comparer_set,
-			layout, !is_list_all && !is_only_in_path, NULL);
+			layout, !is_list_all && !is_only_in_path, NULL, subvol);
 
 out:
 	close_file_or_dir(fd, dirstream);
@@ -844,7 +844,7 @@ static int cmd_subvol_get_default(int argc, char **argv)
 	btrfs_list_setup_print_column(BTRFS_LIST_PATH);
 
 	ret = btrfs_list_subvols_print(fd, filter_set, NULL,
-		BTRFS_LIST_LAYOUT_DEFAULT, 1, NULL);
+		BTRFS_LIST_LAYOUT_DEFAULT, 1, NULL, subvol);
 
 	if (filter_set)
 		free(filter_set);
@@ -1110,7 +1110,7 @@ static int cmd_subvol_show(int argc, char **argv)
 		goto out;
 	}
 	btrfs_list_subvols_print(fd, filter_set, NULL, BTRFS_LIST_LAYOUT_RAW,
-			1, raw_prefix);
+			1, raw_prefix, fullpath);
 
 out:
 	/* clean up */

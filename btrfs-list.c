@@ -1489,7 +1489,8 @@ next:
 	}
 }
 
-static int btrfs_list_subvols(int fd, struct root_lookup *root_lookup)
+static int btrfs_list_subvols(int fd, struct root_lookup *root_lookup,
+			const char *path)
 {
 	int ret;
 
@@ -1510,7 +1511,7 @@ static int btrfs_list_subvols(int fd, struct root_lookup *root_lookup)
 int btrfs_list_subvols_print(int fd, struct btrfs_list_filter_set *filter_set,
 		       struct btrfs_list_comparer_set *comp_set,
 		       enum btrfs_list_layout layout, int full_path,
-		       const char *raw_prefix)
+		       const char *raw_prefix, const char *path)
 {
 	struct root_lookup root_lookup;
 	struct root_lookup root_sort;
@@ -1522,7 +1523,7 @@ int btrfs_list_subvols_print(int fd, struct btrfs_list_filter_set *filter_set,
 	if (ret)
 		return ret;
 
-	ret = btrfs_list_subvols(fd, &root_lookup);
+	ret = btrfs_list_subvols(fd, &root_lookup, path);
 	if (ret) {
 		rb_free_nodes(&root_lookup.root, free_root_info);
 		return ret;
@@ -1543,7 +1544,8 @@ static char *strdup_or_null(const char *s)
 	return strdup(s);
 }
 
-int btrfs_get_toplevel_subvol(int fd, struct root_info *the_ri)
+int btrfs_get_toplevel_subvol(int fd, struct root_info *the_ri,
+			const char *path)
 {
 	int ret;
 	struct root_lookup rl;
@@ -1555,7 +1557,7 @@ int btrfs_get_toplevel_subvol(int fd, struct root_info *the_ri)
 	if (ret)
 		return ret;
 
-	ret = btrfs_list_subvols(fd, &rl);
+	ret = btrfs_list_subvols(fd, &rl, path);
 	if (ret) {
 		rb_free_nodes(&rl.root, free_root_info);
 		return ret;
@@ -1578,7 +1580,7 @@ int btrfs_get_toplevel_subvol(int fd, struct root_info *the_ri)
 	return ret;
 }
 
-int btrfs_get_subvol(int fd, struct root_info *the_ri)
+int btrfs_get_subvol(int fd, struct root_info *the_ri, const char *path)
 {
 	int ret, rr;
 	struct root_lookup rl;
@@ -1590,7 +1592,7 @@ int btrfs_get_subvol(int fd, struct root_info *the_ri)
 	if (ret)
 		return ret;
 
-	ret = btrfs_list_subvols(fd, &rl);
+	ret = btrfs_list_subvols(fd, &rl, path);
 	if (ret) {
 		rb_free_nodes(&rl.root, free_root_info);
 		return ret;

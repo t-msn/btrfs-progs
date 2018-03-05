@@ -2542,9 +2542,9 @@ int get_subvol_info(const char *fullpath, struct root_info *get_ri)
 	get_ri->root_id = sv_id;
 
 	if (sv_id == BTRFS_FS_TREE_OBJECTID)
-		ret = btrfs_get_toplevel_subvol(mntfd, get_ri);
+		ret = btrfs_get_toplevel_subvol(mntfd, get_ri, mnt);
 	else
-		ret = btrfs_get_subvol(mntfd, get_ri);
+		ret = btrfs_get_subvol(mntfd, get_ri, mnt);
 	if (ret)
 		error("can't find '%s': %d", svpath, ret);
 
@@ -2570,9 +2570,9 @@ int get_subvol_info_by_rootid(const char *mnt, struct root_info *get_ri, u64 r_i
 	get_ri->root_id = r_id;
 
 	if (r_id == BTRFS_FS_TREE_OBJECTID)
-		ret = btrfs_get_toplevel_subvol(fd, get_ri);
+		ret = btrfs_get_toplevel_subvol(fd, get_ri, mnt);
 	else
-		ret = btrfs_get_subvol(fd, get_ri);
+		ret = btrfs_get_subvol(fd, get_ri, mnt);
 
 	if (ret)
 		error("can't find rootid '%llu' on '%s': %d", r_id, mnt, ret);
@@ -2595,7 +2595,7 @@ int get_subvol_info_by_uuid(const char *mnt, struct root_info *get_ri, u8 *uuid_
 	memset(get_ri, 0, sizeof(*get_ri));
 	uuid_copy(get_ri->uuid, uuid_arg);
 
-	ret = btrfs_get_subvol(fd, get_ri);
+	ret = btrfs_get_subvol(fd, get_ri, mnt);
 	if (ret) {
 		char uuid_parsed[BTRFS_UUID_UNPARSED_SIZE];
 		uuid_unparse(uuid_arg, uuid_parsed);
