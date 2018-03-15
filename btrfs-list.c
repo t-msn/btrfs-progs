@@ -1523,8 +1523,10 @@ int btrfs_list_subvols_print(int fd, struct btrfs_list_filter_set *filter_set,
 		return ret;
 
 	ret = btrfs_list_subvols(fd, &root_lookup);
-	if (ret)
+	if (ret) {
+		rb_free_nodes(&root_lookup.root, free_root_info);
 		return ret;
+	}
 	filter_and_sort_subvol(&root_lookup, &root_sort, filter_set,
 				 comp_set, top_id);
 
@@ -1554,14 +1556,18 @@ int btrfs_get_toplevel_subvol(int fd, struct root_info *the_ri)
 		return ret;
 
 	ret = btrfs_list_subvols(fd, &rl);
-	if (ret)
+	if (ret) {
+		rb_free_nodes(&rl.root, free_root_info);
 		return ret;
+	}
 
 	rbn = rb_first(&rl.root);
 	ri = rb_entry(rbn, struct root_info, rb_node);
 
-	if (ri->root_id != BTRFS_FS_TREE_OBJECTID)
+	if (ri->root_id != BTRFS_FS_TREE_OBJECTID) {
+		rb_free_nodes(&rl.root, free_root_info);
 		return -ENOENT;
+	}
 
 	memcpy(the_ri, ri, offsetof(struct root_info, path));
 	the_ri->path = strdup_or_null("/");
@@ -1585,8 +1591,10 @@ int btrfs_get_subvol(int fd, struct root_info *the_ri)
 		return ret;
 
 	ret = btrfs_list_subvols(fd, &rl);
-	if (ret)
+	if (ret) {
+		rb_free_nodes(&rl.root, free_root_info);
 		return ret;
+	}
 
 	rbn = rb_first(&rl.root);
 	while(rbn) {
