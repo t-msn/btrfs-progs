@@ -46,6 +46,9 @@ static const char * const error_messages[] = {
 	[BTRFS_UTIL_ERROR_START_SYNC_FAILED] = "Could not start filesystem sync",
 	[BTRFS_UTIL_ERROR_WAIT_SYNC_FAILED] = "Could not wait for filesystem sync",
 	[BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_USER_FAILED] = "Could not get the subvolume information",
+	[BTRFS_UTIL_ERROR_CREATE_SUBVOL_ITERATOR_USER_FAILED] = "Could not get the subvolume information",
+	[BTRFS_UTIL_ERROR_GET_SUBVOL_ROOTREF_FAILED] = "Could not call GET_SUBVOL_ROOTREF ioctl",
+	[BTRFS_UTIL_ERROR_INO_LOOKUP_USER_FAILED] = "Could not call INO_LOOKUP_USER ioctl",
 };
 
 PUBLIC const char *btrfs_util_strerror(enum btrfs_util_error err)

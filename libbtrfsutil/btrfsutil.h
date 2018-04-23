@@ -64,6 +64,9 @@ enum btrfs_util_error {
 	BTRFS_UTIL_ERROR_START_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_WAIT_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_USER_FAILED,
+	BTRFS_UTIL_ERROR_CREATE_SUBVOL_ITERATOR_USER_FAILED,
+	BTRFS_UTIL_ERROR_GET_SUBVOL_ROOTREF_FAILED,
+	BTRFS_UTIL_ERROR_INO_LOOKUP_USER_FAILED,
 };
 
 /**
@@ -494,6 +497,7 @@ enum btrfs_util_error btrfs_util_delete_subvolume_fd(int parent_fd,
 						     int flags);
 
 struct btrfs_util_subvolume_iterator;
+struct btrfs_util_subvolume_iterator_user;
 
 /**
  * BTRFS_UTIL_SUBVOLUME_ITERATOR_POST_ORDER - Iterate post-order. The default
@@ -590,6 +594,28 @@ enum btrfs_util_error btrfs_util_subvolume_iterator_next_info(struct btrfs_util_
 							      char **path_ret,
 							      struct btrfs_util_subvolume_info *subvol);
 
+/*
+ * user version of btrfs_util_subvolume_iterator (TODO: add more comment)
+ */
+enum btrfs_util_error btrfs_util_create_subvolume_iterator_user(const char *path,
+							   int flags,
+							   struct btrfs_util_subvolume_iterator_user **ret);
+
+enum btrfs_util_error btrfs_util_create_subvolume_iterator_user_fd(int fd,
+							      int flags,
+							      struct btrfs_util_subvolume_iterator_user **ret);
+
+void btrfs_util_destroy_subvolume_iterator_user(struct btrfs_util_subvolume_iterator_user *iter);
+
+int btrfs_util_subvolume_iterator_user_fd(const struct btrfs_util_subvolume_iterator_user *iter);
+
+enum btrfs_util_error btrfs_util_subvolume_iterator_user_next(struct btrfs_util_subvolume_iterator_user *iter,
+							 char **path_ret,
+							 uint64_t *id_ret);
+
+enum btrfs_util_error btrfs_util_subvolume_iterator_user_next_info(struct btrfs_util_subvolume_iterator_user *iter,
+							      char **path_ret,
+							      struct btrfs_util_subvolume_info *subvol);
 /**
  * btrfs_util_deleted_subvolumes() - Get a list of subvolume which have been
  * deleted but not yet cleaned up.
