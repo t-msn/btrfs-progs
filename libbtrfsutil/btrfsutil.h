@@ -63,6 +63,7 @@ enum btrfs_util_error {
 	BTRFS_UTIL_ERROR_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_START_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_WAIT_SYNC_FAILED,
+	BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_USER_FAILED,
 };
 
 /**
@@ -277,6 +278,15 @@ enum btrfs_util_error btrfs_util_subvolume_info(const char *path, uint64_t id,
  * btrfs_util_subvolume_info_fd() - See btrfs_util_subvolume_info().
  */
 enum btrfs_util_error btrfs_util_subvolume_info_fd(int fd, uint64_t id,
+						   struct btrfs_util_subvolume_info *subvol);
+
+/*
+ * User version of btrfs_util_subvolume_info (TODO: add comment)
+ */
+enum btrfs_util_error btrfs_util_subvolume_info_user(const char *path,
+						struct btrfs_util_subvolume_info *subvol);
+
+enum btrfs_util_error btrfs_util_subvolume_info_user_fd(int fd,
 						   struct btrfs_util_subvolume_info *subvol);
 
 /**

@@ -400,6 +400,58 @@ PUBLIC enum btrfs_util_error btrfs_util_subvolume_info_fd(int fd, uint64_t id,
 	return BTRFS_UTIL_OK;
 }
 
+PUBLIC enum btrfs_util_error btrfs_util_subvolume_info_user(const char *path,
+						       struct btrfs_util_subvolume_info *subvol)
+{
+	enum btrfs_util_error err;
+	int fd;
+
+	fd = open(path, O_RDONLY);
+	if (fd == -1)
+		return BTRFS_UTIL_ERROR_OPEN_FAILED;
+
+	err = btrfs_util_subvolume_info_user_fd(fd, subvol);
+	SAVE_ERRNO_AND_CLOSE(fd);
+	return err;
+}
+
+PUBLIC enum btrfs_util_error btrfs_util_subvolume_info_user_fd(int fd,
+							  struct btrfs_util_subvolume_info *subvol)
+{
+	struct btrfs_ioctl_get_subvol_info_args info;
+	int ret;
+
+	ret = ioctl(fd, BTRFS_IOC_GET_SUBVOL_INFO, &info);
+	if (ret < 0)
+		return BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_USER_FAILED;
+
+	subvol->id = info.id;
+	subvol->parent_id = info.parent_id;
+	subvol->dir_id = info.dirid;
+	subvol->flags = info.flags;
+	subvol->generation = info.generation;
+
+	memcpy(subvol->uuid, info.uuid, sizeof(subvol->uuid));
+	memcpy(subvol->parent_uuid, info.parent_uuid, sizeof(subvol->parent_uuid));
+	memcpy(subvol->received_uuid, info.received_uuid, sizeof(subvol->received_uuid));
+
+	subvol->ctransid = info.ctransid;
+	subvol->otransid = info.otransid;
+	subvol->stransid = info.stransid;
+	subvol->rtransid = info.rtransid;
+
+	subvol->ctime.tv_sec  = info.ctime.sec;
+	subvol->ctime.tv_nsec = info.ctime.nsec;
+	subvol->otime.tv_sec  = info.otime.sec;
+	subvol->otime.tv_nsec = info.otime.nsec;
+	subvol->stime.tv_sec  = info.stime.sec;
+	subvol->stime.tv_nsec = info.stime.nsec;
+	subvol->rtime.tv_sec  = info.rtime.sec;
+	subvol->rtime.tv_nsec = info.rtime.nsec;
+
+	return BTRFS_UTIL_OK;
+}
+
 PUBLIC enum btrfs_util_error btrfs_util_get_subvolume_read_only_fd(int fd,
 								   bool *read_only_ret)
 {
