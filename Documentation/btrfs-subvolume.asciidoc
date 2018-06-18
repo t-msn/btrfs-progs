@@ -148,6 +148,8 @@ list deleted subvolumes that are not yet cleaned.
 Other;;
 -t::::
 print the result as a table.
+-A::::
+print path in absolute path.
 
 Sorting;;
 -G [+|-]<value>::::

@@ -1158,7 +1158,8 @@ static void get_subvols_info(struct subvol_list **subvols,
 			     struct btrfs_list_filter_set_v2 *filter_set,
 			     int fd,
 			     int tree_id,
-			     size_t *capacity)
+			     size_t *capacity,
+			     const char *prefix)
 {
 	struct btrfs_util_subvolume_iterator *iter;
 	enum btrfs_util_error err;
@@ -1208,7 +1209,10 @@ static void get_subvols_info(struct subvol_list **subvols,
 			goto out;
 		}
 
-		subvol.path = strdup(".");
+		if (prefix)
+			subvol.path = strdup(prefix);
+		else
+			subvol.path = strdup(".");
 		if (!filters_match(&subvol, filter_set)) {
 			free(subvol.path);
 		} else {
@@ -1233,6 +1237,29 @@ skip:
 			goto out;
 		}
 
+		if (prefix) {
+			char *temp = subvol.path;
+
+			subvol.path = malloc(strlen(prefix) +
+					     strlen(subvol.path) + 2);
+			if (!subvol.path) {
+				error("out of memory");
+				subvol.path = temp;
+				ret = -1;
+				goto out;
+			}
+
+			strcpy(subvol.path, prefix);
+			if (strlen(prefix) == 1 && prefix[0] == '/') {
+				strcpy(subvol.path + 1, temp);
+			} else {
+				subvol.path[strlen(prefix)] = '/';
+				strcpy(subvol.path + strlen(prefix) + 1, temp);
+			}
+
+			free(temp);
+		}
+
 		if (!filters_match(&subvol, filter_set)) {
 			free(subvol.path);
 		} else {
@@ -1254,6 +1281,7 @@ out:
 
 static struct subvol_list *btrfs_list_subvols(int fd,
 					      int is_list_all,
+					      int absolute_path,
 					      const char *path,
 					      struct btrfs_list_filter_set_v2 *filter_set)
 {
@@ -1267,11 +1295,24 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 	}
 	subvols->num = 0;
 
-	if (is_list_all)
+	if (is_list_all) {
 		get_subvols_info(&subvols, filter_set, fd,
-				BTRFS_FS_TREE_OBJECTID, &capacity);
-	else
-		get_subvols_info(&subvols, filter_set, fd, 0, &capacity);
+				BTRFS_FS_TREE_OBJECTID, &capacity, NULL);
+	} else {
+		char *fullpath;
+
+		fullpath = realpath(path, NULL);
+		if (!fullpath) {
+			error("cannot find real path for '%s': %m", path);
+			free_subvol_list(subvols);
+			return NULL;
+		}
+
+		get_subvols_info(&subvols, filter_set, fd, 0, &capacity,
+				(absolute_path ? fullpath : NULL));
+
+		free(fullpath);
+	}
 
 	return subvols;
 }
@@ -1281,6 +1322,7 @@ static int btrfs_list_subvols_print_v2(int fd,
 				    struct btrfs_list_comparer_set_v2 *comp_set,
 				    enum btrfs_list_layout layout,
 				    int is_list_all,
+				    int absolute_path,
 				    const char *path,
 				    const char *raw_prefix)
 {
@@ -1289,7 +1331,8 @@ static int btrfs_list_subvols_print_v2(int fd,
 	if (filter_set->only_deleted)
 		subvols = btrfs_list_deleted_subvols(fd, filter_set);
 	else
-		subvols = btrfs_list_subvols(fd, is_list_all, path, filter_set);
+		subvols = btrfs_list_subvols(fd, is_list_all, absolute_path,
+					     path, filter_set);
 	if (!subvols)
 		return -1;
 
@@ -1429,6 +1472,8 @@ static const char * const cmd_subvol_list_usage[] = {
 	"",
 	"Other:",
 	"-t           print the result as a table",
+	"-A           print path in absolute path",
+	"             (default is a relative to the specified path)",
 	"",
 	"Sorting:",
 	"-G [+|-]value",
@@ -1455,6 +1500,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	char *subvol;
 	int is_list_all = 0;
 	int is_only_in_path = 0;
+	int absolute_path = 0;
 	DIR *dirstream = NULL;
 	enum btrfs_list_layout layout = BTRFS_LIST_LAYOUT_DEFAULT;
 
@@ -1470,11 +1516,14 @@ static int cmd_subvol_list(int argc, char **argv)
 		};
 
 		c = getopt_long(argc, argv,
-				    "acdgopqsurRG:C:t", long_options, NULL);
+				    "acdgopqsurARG:C:t", long_options, NULL);
 		if (c < 0)
 			break;
 
 		switch(c) {
+		case 'A':
+			absolute_path = 1;
+			break;
 		case 'p':
 			btrfs_list_setup_print_column_v2(BTRFS_LIST_PARENT);
 			break;
@@ -1564,6 +1613,12 @@ static int cmd_subvol_list(int argc, char **argv)
 		goto out;
 	}
 
+	if (is_list_all && absolute_path) {
+		ret = -1;
+		error("cannot use -a with -A option");
+		goto out;
+	}
+
 	subvol = argv[optind];
 	fd = btrfs_open_dir(subvol, &dirstream, 1);
 	if (fd < 0) {
@@ -1596,7 +1651,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	btrfs_list_setup_print_column_v2(BTRFS_LIST_PATH);
 
 	ret = btrfs_list_subvols_print_v2(fd, filter_set, comparer_set,
-			layout, is_list_all, subvol, NULL);
+			layout, is_list_all, absolute_path, subvol, NULL);
 
 out:
 	close_file_or_dir(fd, dirstream);
