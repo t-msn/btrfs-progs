@@ -1255,9 +1255,9 @@ static enum btrfs_util_error build_subvol_path(struct btrfs_util_subvolume_itera
 	return BTRFS_UTIL_OK;
 }
 
-PUBLIC enum btrfs_util_error btrfs_util_subvolume_iterator_next(struct btrfs_util_subvolume_iterator *iter,
-								char **path_ret,
-								uint64_t *id_ret)
+static enum btrfs_util_error subvolume_iterator_next_root(struct btrfs_util_subvolume_iterator *iter,
+							  char **path_ret,
+							  uint64_t *id_ret)
 {
 	struct search_stack_entry *top;
 	const struct btrfs_ioctl_search_header *header;
@@ -1329,6 +1329,13 @@ out:
 	if (id_ret)
 		*id_ret = top->search.key.min_objectid;
 	return BTRFS_UTIL_OK;
+}
+
+PUBLIC enum btrfs_util_error btrfs_util_subvolume_iterator_next(struct btrfs_util_subvolume_iterator *iter,
+								char **path_ret,
+								uint64_t *id_ret)
+{
+	return subvolume_iterator_next_root(iter, path_ret, id_ret);
 }
 
 PUBLIC enum btrfs_util_error btrfs_util_subvolume_iterator_next_info(struct btrfs_util_subvolume_iterator *iter,
