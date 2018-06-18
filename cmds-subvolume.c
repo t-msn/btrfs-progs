@@ -761,28 +761,6 @@ static int filter_topid_equal(struct listed_subvol *subvol, uint64_t data)
 	return subvol->info.parent_id == data;
 }
 
-static int filter_full_path(struct listed_subvol *subvol, uint64_t data)
-{
-	/*
-	 * This implements the same behavior as before the conversion to
-	 * libbtrfsutil, which is mostly nonsensical.
-	 */
-	if (subvol->info.parent_id != data) {
-		char *tmp;
-		int ret;
-
-		ret = asprintf(&tmp, "<FS_TREE>/%s", subvol->path);
-		if (ret == -1) {
-			error("out of memory");
-			exit(1);
-		}
-
-		free(subvol->path);
-		subvol->path = tmp;
-	}
-	return 1;
-}
-
 static int filter_by_parent(struct listed_subvol *subvol, uint64_t data)
 {
 	return !uuid_compare(subvol->info.parent_uuid,
@@ -800,7 +778,6 @@ static btrfs_list_filter_func_v2 all_filter_funcs[] = {
 	[BTRFS_LIST_FILTER_CGEN_LESS]		= filter_cgen_less,
 	[BTRFS_LIST_FILTER_CGEN_EQUAL]          = filter_cgen_equal,
 	[BTRFS_LIST_FILTER_TOPID_EQUAL]		= filter_topid_equal,
-	[BTRFS_LIST_FILTER_FULL_PATH]		= filter_full_path,
 	[BTRFS_LIST_FILTER_BY_PARENT]		= filter_by_parent,
 };
 
@@ -1576,9 +1553,9 @@ static const char * const cmd_subvol_list_usage[] = {
 	"",
 	"Path filtering:",
 	"-o           print only subvolumes below specified path",
-	"-a           print all the subvolumes in the filesystem and",
-	"             distinguish absolute and relative path with respect",
-	"             to the given <path> (require root privileges)",
+	"-a           print all the subvolumes in the filesystem.",
+	"             path to be shown is relative to the top-level",
+	"             subvolume (require root privileges)",
 	"-f           follow mounted subvolumes below the specified path",
 	"             and list them too (only if it is the same filesystem)",
 	"",
@@ -1786,11 +1763,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	if (ret)
 		goto out;
 
-	if (is_list_all)
-		btrfs_list_setup_filter_v2(&filter_set,
-					BTRFS_LIST_FILTER_FULL_PATH,
-					top_id);
-	else if (is_only_in_path)
+	if (is_only_in_path)
 		btrfs_list_setup_filter_v2(&filter_set,
 					BTRFS_LIST_FILTER_TOPID_EQUAL,
 					top_id);

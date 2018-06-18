@@ -118,8 +118,10 @@ Path filtering;;
 -o::::
 print only subvolumes below specified <path>.
 -a::::
-print all the subvolumes in the filesystem and distinguish between
-absolute and relative path with respect to the given <path>.
+print all the subvolumes in the filesystem, including subvolumes
+which cannot be accessed from current mount point.
+path to be shown is relative to the top-level subvolume
+(require root privileges).
 -f::::
 follow mounted subvolumes below <path> recursively and list them too
 (only if it is the same filesystem). If top-level subvolume is mounted
