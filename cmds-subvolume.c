@@ -1038,6 +1038,23 @@ static void print_all_subvol_info_tab_head(void)
 	}
 }
 
+static void print_one_subvol_info(struct listed_subvol *subvol,
+				  enum btrfs_list_layout layout,
+				  const char *raw_prefix)
+{
+	switch (layout) {
+	case BTRFS_LIST_LAYOUT_DEFAULT:
+		print_one_subvol_info_default(subvol);
+		break;
+	case BTRFS_LIST_LAYOUT_TABLE:
+		print_one_subvol_info_table(subvol);
+		break;
+	case BTRFS_LIST_LAYOUT_RAW:
+		print_one_subvol_info_raw(subvol, raw_prefix);
+		break;
+	}
+}
+
 static void print_all_subvol_info(struct subvol_list *subvols,
 				  enum btrfs_list_layout layout,
 				  const char *raw_prefix)
@@ -1050,17 +1067,7 @@ static void print_all_subvol_info(struct subvol_list *subvols,
 	for (i = 0; i < subvols->num; i++) {
 		struct listed_subvol *subvol = &subvols->subvols[i];
 
-		switch (layout) {
-		case BTRFS_LIST_LAYOUT_DEFAULT:
-			print_one_subvol_info_default(subvol);
-			break;
-		case BTRFS_LIST_LAYOUT_TABLE:
-			print_one_subvol_info_table(subvol);
-			break;
-		case BTRFS_LIST_LAYOUT_RAW:
-			print_one_subvol_info_raw(subvol, raw_prefix);
-			break;
-		}
+		print_one_subvol_info(subvol, layout, raw_prefix);
 	}
 }
 
@@ -1161,7 +1168,9 @@ static void get_subvols_info(struct subvol_list **subvols,
 			     int tree_id,
 			     size_t *capacity,
 			     const char *prefix,
-			     int show_top)
+			     int show_top,
+			     enum btrfs_list_layout layout,
+			     const char *raw_prefix)
 {
 	struct btrfs_util_subvolume_iterator *iter;
 	enum btrfs_util_error err;
@@ -1218,9 +1227,14 @@ static void get_subvols_info(struct subvol_list **subvols,
 		if (!filters_match(&subvol, filter_set)) {
 			free(subvol.path);
 		} else {
-			ret = add_subvol(subvols, &subvol, capacity);
-			if (ret)
-				goto out;
+			if (*subvols == NULL) {
+				print_one_subvol_info(&subvol,
+						      layout, raw_prefix);
+			} else {
+				ret = add_subvol(subvols, &subvol, capacity);
+				if (ret)
+					goto out;
+			}
 		}
 	}
 
@@ -1265,9 +1279,14 @@ skip:
 		if (!filters_match(&subvol, filter_set)) {
 			free(subvol.path);
 		} else {
-			ret = add_subvol(subvols, &subvol, capacity);
-			if (ret)
-				goto out;
+			if (*subvols == NULL) {
+				print_one_subvol_info(&subvol,
+						      layout, raw_prefix);
+			} else {
+				ret = add_subvol(subvols, &subvol, capacity);
+				if (ret)
+					goto out;
+			}
 		}
 	}
 
@@ -1277,7 +1296,7 @@ out:
 		btrfs_util_destroy_subvolume_iterator(iter);
 	if (ret) {
 		free_subvol_list(*subvols);
-		*subvols = NULL;
+		*subvols = ERR_PTR(ret);
 	}
 }
 
@@ -1285,23 +1304,31 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 					      int is_list_all,
 					      int absolute_path,
 					      int follow_mount,
+					      int no_sort,
+					      enum btrfs_list_layout layout,
+					      const char *raw_prefix,
 					      const char *path,
 					      struct btrfs_list_filter_set_v2 *filter_set)
 {
-	struct subvol_list *subvols;
+	struct subvol_list *subvols = NULL;
 	size_t capacity = 0;
 
-	subvols = malloc(sizeof(*subvols));
-	if (!subvols) {
-		error("out of memory");
-		return NULL;
+	if (!no_sort) {
+		subvols = malloc(sizeof(*subvols));
+		if (!subvols) {
+			error("out of memory");
+			return ERR_PTR(-1);
+		}
+		subvols->num = 0;
 	}
-	subvols->num = 0;
+
+	if (no_sort && layout == BTRFS_LIST_LAYOUT_TABLE)
+		print_all_subvol_info_tab_head();
 
 	if (is_list_all) {
 		get_subvols_info(&subvols, filter_set, fd,
 				BTRFS_FS_TREE_OBJECTID, &capacity, NULL,
-				false);
+				false, layout, raw_prefix);
 	} else {
 		char *fullpath;
 
@@ -1309,16 +1336,17 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 		if (!fullpath) {
 			error("cannot find real path for '%s': %m", path);
 			free_subvol_list(subvols);
-			return NULL;
+			return ERR_PTR(-1);
 		}
 
 		get_subvols_info(&subvols, filter_set, fd, 0, &capacity,
-				(absolute_path ? fullpath : NULL), false);
+				(absolute_path ? fullpath : NULL), false,
+				layout, raw_prefix);
 
-		if (subvols == NULL) {
-			free(fullpath);
-			return NULL;
-		}
+			if (IS_ERR(subvols)) {
+				free(fullpath);
+				return ERR_PTR(-1);
+			}
 
 		/* Follow mounted subvolumes below @path */
 		if (follow_mount) {
@@ -1336,7 +1364,7 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 				error("failed to get fsid: %m");
 				free(fullpath);
 				free_subvol_list(subvols);
-				return NULL;
+				return ERR_PTR(-1);
 			}
 
 			f = setmntent("/proc/self/mounts", "r");
@@ -1344,7 +1372,7 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 				error("failed to read mount entry: %m");
 				free(fullpath);
 				free_subvol_list(subvols);
-				return NULL;
+				return ERR_PTR(-1);
 			}
 
 			/* Iterate for each mount entry */
@@ -1371,7 +1399,7 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 					error("failed to get fsid: %m");
 					free(fullpath);
 					free_subvol_list(subvols);
-					return NULL;
+					return ERR_PTR(-1);
 				}
 				if (uuid_compare(fsid, fsid2))
 					continue;
@@ -1383,7 +1411,7 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 							mnt->mnt_dir);
 					free(fullpath);
 					free_subvol_list(subvols);
-					return NULL;
+					return ERR_PTR(-1);
 				}
 				get_subvols_info(&subvols, filter_set,
 						fd2, 0, &capacity,
@@ -1391,11 +1419,11 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 							(strlen(fullpath) == 1 ?
 							 mnt->mnt_dir + 1 :
 							 mnt->mnt_dir + strlen(fullpath) + 1)),
-						true);
+						true, layout, raw_prefix);
 				close_file_or_dir(fd2, dirstream);
-				if (subvols == NULL) {
+				if (IS_ERR(subvols)) {
 					free(fullpath);
-					return NULL;
+					return ERR_PTR(-1);
 				}
 			}
 		}
@@ -1412,6 +1440,7 @@ static int btrfs_list_subvols_print_v2(int fd,
 				    int is_list_all,
 				    int absolute_path,
 				    int follow_mount,
+				    int no_sort,
 				    const char *path,
 				    const char *raw_prefix)
 {
@@ -1421,15 +1450,20 @@ static int btrfs_list_subvols_print_v2(int fd,
 		subvols = btrfs_list_deleted_subvols(fd, filter_set);
 	else
 		subvols = btrfs_list_subvols(fd, is_list_all, absolute_path,
-					     follow_mount, path, filter_set);
-	if (!subvols)
+					     follow_mount, no_sort,
+					     layout, raw_prefix,
+					     path, filter_set);
+
+	if (IS_ERR(subvols))
 		return -1;
 
-	sort_subvols(comp_set, subvols);
+	if (!no_sort) {
+		sort_subvols(comp_set, subvols);
 
-	print_all_subvol_info(subvols, layout, raw_prefix);
+		print_all_subvol_info(subvols, layout, raw_prefix);
 
-	free_subvol_list(subvols);
+		free_subvol_list(subvols);
+	}
 
 	return 0;
 }
@@ -1577,6 +1611,9 @@ static const char * const cmd_subvol_list_usage[] = {
 	"             list the subvolume in order of gen, ogen, rootid or path",
 	"             you also can add '+' or '-' in front of each items.",
 	"             (+:ascending, -:descending, ascending default)",
+	"--nosort     Output the results incrementally without sort.",
+	"             This avoids loading all subvolume information to memory",
+	"             and can be useful when there is a lot of subvolumes",
 	NULL,
 };
 
@@ -1591,6 +1628,8 @@ static int cmd_subvol_list(int argc, char **argv)
 	char *subvol;
 	int is_list_all = 0;
 	int follow_mount = 0;
+	int sort = 0;
+	int no_sort = 0;
 	int is_only_in_path = 0;
 	int absolute_path = 0;
 	DIR *dirstream = NULL;
@@ -1604,6 +1643,7 @@ static int cmd_subvol_list(int argc, char **argv)
 		int c;
 		static const struct option long_options[] = {
 			{"sort", required_argument, NULL, 'S'},
+			{"nosort", no_argument, NULL, 'N'},
 			{NULL, 0, NULL, 0}
 		};
 
@@ -1683,12 +1723,16 @@ static int cmd_subvol_list(int argc, char **argv)
 			}
 			break;
 		case 'S':
+			sort = 1;
 			ret = btrfs_list_parse_sort_string_v2(optarg,
 							   &comparer_set);
 			if (ret) {
 				uerr = 1;
 				goto out;
 			}
+			break;
+		case 'N':
+			no_sort = 1;
 			break;
 
 		default:
@@ -1717,6 +1761,12 @@ static int cmd_subvol_list(int argc, char **argv)
 	if (follow_mount && (is_list_all || is_only_in_path)) {
 		ret = -1;
 		error("cannot use -f with -a or -o option");
+		goto out;
+	}
+
+	if (sort && no_sort) {
+		ret = -1;
+		error("cannot use --sort with --nosort option");
 		goto out;
 	}
 
@@ -1753,7 +1803,7 @@ static int cmd_subvol_list(int argc, char **argv)
 
 	ret = btrfs_list_subvols_print_v2(fd, filter_set, comparer_set,
 			layout, is_list_all, absolute_path, follow_mount,
-			subvol, NULL);
+			no_sort, subvol, NULL);
 
 out:
 	close_file_or_dir(fd, dirstream);

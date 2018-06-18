@@ -170,6 +170,11 @@ you can add \'\+' or \'-' in front of each items, \'+' means ascending,
 +
 for --sort you can combine some items together by \',', just like
 --sort=+ogen,-gen,path,rootid.
++
+--nosort::::
+Output the results incrementally without sort. This avoids loading all
+subvolume information to memory and can be useful when there is a lot
+of subvolumes.
 
 *set-default* [<subvolume>|<id> <path>]::
 Set the default subvolume for the (mounted) filesystem.
