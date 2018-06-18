@@ -95,6 +95,12 @@ The output format is similar to *subvolume list* command.
 
 *list* [options] [-G [\+|-]<value>] [-C [+|-]<value>] [--sort=rootid,gen,ogen,path] <path>::
 List the subvolumes present in the filesystem <path>.
+By default, this only lists the subvolumes under <path>,
+including <path> itself (except top-level subvolume).
++
+This command had required root privileges. From kernel 4.18,
+non privileged user can call this too. Also from kernel 4.18,
+It is possible to specify non-subvolume directory as <path>.
 +
 For every subvolume the following information is shown by default:
 +
@@ -102,7 +108,7 @@ ID <ID> gen <generation> top level <ID> path <path>
 +
 where ID is subvolume's id, gen is an internal counter which is updated
 every transaction, top level is the same as parent subvolume's id, and
-path is the relative path of the subvolume to the top level subvolume.
+path is the relative path of the subvolume to the specified path.
 The subvolume's ID may be used by the subvolume set-default command,
 or at mount time via the subvolid= option.
 +
