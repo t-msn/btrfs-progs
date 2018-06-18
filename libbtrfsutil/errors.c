@@ -49,6 +49,12 @@ static const char * const error_messages[] = {
 		"Non-root user cannot specify subvolume id",
 	[BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_FAILED] =
 	"Could not get subvolume information by BTRFS_IOC_GET_SUBVOL_INFO",
+	[BTRFS_UTIL_ERROR_GET_SUBVOL_ROOTREF_FAILED] =
+	"Could not get rootref information by BTRRFS_IOC_GET_SUBVOL_ROOTREF",
+	[BTRFS_UTIL_ERROR_INO_LOOKUP_USER_FAILED] =
+	"Could not resolve subvolume path by BTRFS_IOC_INO_LOOKUP_USER",
+	[BTRFS_UTIL_ERROR_DUP_FAILED] = "Could not dup",
+	[BTRFS_UTIL_ERROR_CHDIR_FAILED] = "Could not chdir",
 };
 
 PUBLIC const char *btrfs_util_strerror(enum btrfs_util_error err)

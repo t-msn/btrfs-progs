@@ -65,6 +65,10 @@ enum btrfs_util_error {
 	BTRFS_UTIL_ERROR_WAIT_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_INVALID_ARGUMENT_FOR_USER,
 	BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_FAILED,
+	BTRFS_UTIL_ERROR_GET_SUBVOL_ROOTREF_FAILED,
+	BTRFS_UTIL_ERROR_INO_LOOKUP_USER_FAILED,
+	BTRFS_UTIL_ERROR_DUP_FAILED,
+	BTRFS_UTIL_ERROR_CHDIR_FAILED,
 };
 
 /**
@@ -510,6 +514,14 @@ struct btrfs_util_subvolume_iterator;
  * @flags: Bitmask of BTRFS_UTIL_SUBVOLUME_ITERATOR_* flags.
  * @ret: Returned iterator.
  *
+ * Using subvolume iterator requires appropriate privilege (CAP_SYS_ADMIN) for
+ * kernel < 4.18. From kenrel >= 4.18 which supports
+ * BTRFS_IOC_GET_SUBVOL_ROOTREF and BTRFS_IOC_INO_LOOKUP_USER, non-previleged
+ * user can use it too (in that case @top must be zero). Also from kernel
+ * >=4.18, if @top is zero, the specified path can be non-subvolume directory
+ * and subvolumes which cannot be accessed will be skipped (either due to
+ * permission error or path is hidden by other mount).
+ *
  * The returned iterator must be freed with
  * btrfs_util_destroy_subvolume_iterator().
  *
@@ -558,7 +570,8 @@ int btrfs_util_subvolume_iterator_fd(const struct btrfs_util_subvolume_iterator 
  * Must be freed with free().
  * @id_ret: Returned subvolume ID. May be %NULL.
  *
- * This requires appropriate privilege (CAP_SYS_ADMIN).
+ * This requires appropriate privilege (CAP_SYS_ADMIN) for kernel < 4.18.
+ * See the comment of btrfs_util_create_subvolume_iterator()
  *
  * Return: %BTRFS_UTIL_OK on success, %BTRFS_UTIL_ERROR_STOP_ITERATION if there
  * are no more subvolumes, non-zero error code on failure.
@@ -577,7 +590,8 @@ enum btrfs_util_error btrfs_util_subvolume_iterator_next(struct btrfs_util_subvo
  * This convenience function basically combines
  * btrfs_util_subvolume_iterator_next() and btrfs_util_subvolume_info().
  *
- * This requires appropriate privilege (CAP_SYS_ADMIN).
+ * This requires appropriate privilege (CAP_SYS_ADMIN) for kernel < 4.18.
+ * See the comment of btrfs_util_create_subvolume_iterator()
  *
  * Return: See btrfs_util_subvolume_iterator_next().
  */
