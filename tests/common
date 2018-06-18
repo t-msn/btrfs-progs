@@ -314,6 +314,16 @@ check_global_prereq()
 	fi
 }
 
+check_testuser()
+{
+	id -u nobody > /dev/null 2>&1
+	if [ $? -ne 0 ]; then
+		_not_run "Need to add user \"nobody\""
+	fi
+	# Note that nobody should not have root privileges
+	# otherwise test may not run as expected
+}
+
 check_image()
 {
 	local image
