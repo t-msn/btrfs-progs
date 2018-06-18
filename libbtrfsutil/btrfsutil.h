@@ -63,6 +63,8 @@ enum btrfs_util_error {
 	BTRFS_UTIL_ERROR_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_START_SYNC_FAILED,
 	BTRFS_UTIL_ERROR_WAIT_SYNC_FAILED,
+	BTRFS_UTIL_ERROR_INVALID_ARGUMENT_FOR_USER,
+	BTRFS_UTIL_ERROR_GET_SUBVOL_INFO_FAILED,
 };
 
 /**
@@ -266,7 +268,10 @@ struct btrfs_util_subvolume_info {
  * to check whether the subvolume exists; %BTRFS_UTIL_ERROR_SUBVOLUME_NOT_FOUND
  * will be returned if it does not.
  *
- * This requires appropriate privilege (CAP_SYS_ADMIN).
+ * This requires appropriate privilege (CAP_SYS_ADMIN) for kernel < 4.18.
+ * From kernel >= 4.18 which supports BTRFS_IOC_GET_SUGBVOL_INFO,
+ * non-privileged user with appropriate permission for @path can use this too
+ * (in that case @id must be zero).
  *
  * Return: %BTRFS_UTIL_OK on success, non-zero error code on failure.
  */
