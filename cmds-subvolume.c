@@ -1128,21 +1128,14 @@ out:
 	return subvols;
 }
 
-static struct subvol_list *btrfs_list_subvols(int fd,
-					      struct btrfs_list_filter_set_v2 *filter_set)
+static void get_subvols_info(struct subvol_list **subvols,
+			     struct btrfs_list_filter_set_v2 *filter_set,
+			     int fd,
+			     size_t *capacity)
 {
-	struct subvol_list *subvols;
-	size_t capacity = 0;
 	struct btrfs_util_subvolume_iterator *iter;
 	enum btrfs_util_error err;
 	int ret = -1;
-
-	subvols = malloc(sizeof(*subvols));
-	if (!subvols) {
-		error("out of memory");
-		return NULL;
-	}
-	subvols->num = 0;
 
 	err = btrfs_util_create_subvolume_iterator_fd(fd,
 						      BTRFS_FS_TREE_OBJECTID, 0,
@@ -1171,11 +1164,11 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 			continue;
 		}
 
-		if (subvols->num >= capacity) {
+		if ((*subvols)->num >= *capacity) {
 			struct subvol_list *new_subvols;
-			size_t new_capacity = max_t(size_t, 1, capacity * 2);
+			size_t new_capacity = max_t(size_t, 1, *capacity * 2);
 
-			new_subvols = realloc(subvols,
+			new_subvols = realloc(*subvols,
 					      sizeof(*new_subvols) +
 					      new_capacity *
 					      sizeof(new_subvols->subvols[0]));
@@ -1184,12 +1177,12 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 				goto out;
 			}
 
-			subvols = new_subvols;
-			capacity = new_capacity;
+			*subvols = new_subvols;
+			*capacity = new_capacity;
 		}
 
-		subvols->subvols[subvols->num] = subvol;
-		subvols->num++;
+		(*subvols)->subvols[(*subvols)->num] = subvol;
+		(*subvols)->num++;
 	}
 
 	ret = 0;
@@ -1197,9 +1190,26 @@ out:
 	if (iter)
 		btrfs_util_destroy_subvolume_iterator(iter);
 	if (ret) {
-		free_subvol_list(subvols);
-		subvols = NULL;
+		free_subvol_list(*subvols);
+		*subvols = NULL;
 	}
+}
+
+static struct subvol_list *btrfs_list_subvols(int fd,
+					      struct btrfs_list_filter_set_v2 *filter_set)
+{
+	struct subvol_list *subvols;
+	size_t capacity = 0;
+
+	subvols = malloc(sizeof(*subvols));
+	if (!subvols) {
+		error("out of memory");
+		return NULL;
+	}
+	subvols->num = 0;
+
+	get_subvols_info(&subvols, filter_set, fd, &capacity);
+
 	return subvols;
 }
 
