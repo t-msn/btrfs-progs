@@ -149,7 +149,8 @@ only snapshot subvolumes in the filesystem will be listed.
 -r::::
 only readonly subvolumes in the filesystem will be listed.
 -d::::
-list deleted subvolumes that are not yet cleaned.
+list deleted subvolumes that are not yet cleaned
+(require root privileges).
 
 Other;;
 -t::::

@@ -1571,6 +1571,7 @@ static const char * const cmd_subvol_list_usage[] = {
 	"-s           list only snapshots",
 	"-r           list readonly subvolumes (including snapshots)",
 	"-d           list deleted subvolumes that are not yet cleaned",
+	"             (require root privileges)",
 	"",
 	"Other:",
 	"-t           print the result as a table",
@@ -1744,6 +1745,13 @@ static int cmd_subvol_list(int argc, char **argv)
 	if (sort && no_sort) {
 		ret = -1;
 		error("cannot use --sort with --nosort option");
+		goto out;
+	}
+
+	if (filter_set->only_deleted &&
+			(is_list_all || absolute_path || follow_mount)) {
+		ret = -1;
+		error("cannot use -d with -a/f/A option");
 		goto out;
 	}
 
