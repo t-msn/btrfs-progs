@@ -120,6 +120,10 @@ print only subvolumes below specified <path>.
 -a::::
 print all the subvolumes in the filesystem and distinguish between
 absolute and relative path with respect to the given <path>.
+-f::::
+follow mounted subvolumes below <path> recursively and list them too
+(only if it is the same filesystem). If top-level subvolume is mounted
+in the way, it is also listed.
 
 Field selection;;
 -p::::

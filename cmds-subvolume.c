@@ -28,6 +28,7 @@
 #include <getopt.h>
 #include <uuid/uuid.h>
 #include <linux/magic.h>
+#include <mntent.h>
 
 #include <btrfsutil.h>
 
@@ -1159,7 +1160,8 @@ static void get_subvols_info(struct subvol_list **subvols,
 			     int fd,
 			     int tree_id,
 			     size_t *capacity,
-			     const char *prefix)
+			     const char *prefix,
+			     int show_top)
 {
 	struct btrfs_util_subvolume_iterator *iter;
 	enum btrfs_util_error err;
@@ -1197,7 +1199,7 @@ static void get_subvols_info(struct subvol_list **subvols,
 			ret = -1;
 			goto out;
 		}
-		if (id == BTRFS_FS_TREE_OBJECTID) {
+		if (!show_top && id == BTRFS_FS_TREE_OBJECTID) {
 			/* Skip top level subvolume */
 			ret = 0;
 			goto skip;
@@ -1282,6 +1284,7 @@ out:
 static struct subvol_list *btrfs_list_subvols(int fd,
 					      int is_list_all,
 					      int absolute_path,
+					      int follow_mount,
 					      const char *path,
 					      struct btrfs_list_filter_set_v2 *filter_set)
 {
@@ -1297,7 +1300,8 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 
 	if (is_list_all) {
 		get_subvols_info(&subvols, filter_set, fd,
-				BTRFS_FS_TREE_OBJECTID, &capacity, NULL);
+				BTRFS_FS_TREE_OBJECTID, &capacity, NULL,
+				false);
 	} else {
 		char *fullpath;
 
@@ -1309,8 +1313,92 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 		}
 
 		get_subvols_info(&subvols, filter_set, fd, 0, &capacity,
-				(absolute_path ? fullpath : NULL));
+				(absolute_path ? fullpath : NULL), false);
 
+		if (subvols == NULL) {
+			free(fullpath);
+			return NULL;
+		}
+
+		/* Follow mounted subvolumes below @path */
+		if (follow_mount) {
+			struct mntent *mnt;
+			FILE *f;
+			DIR *dirstream;
+			u8 fsid[BTRFS_FSID_SIZE];
+			u8 fsid2[BTRFS_FSID_SIZE];
+			char *c;
+			int fd2;
+			int ret;
+
+			ret = get_fsid(path, fsid, 0);
+			if (ret < 0) {
+				error("failed to get fsid: %m");
+				free(fullpath);
+				free_subvol_list(subvols);
+				return NULL;
+			}
+
+			f = setmntent("/proc/self/mounts", "r");
+			if (f == NULL) {
+				error("failed to read mount entry: %m");
+				free(fullpath);
+				free_subvol_list(subvols);
+				return NULL;
+			}
+
+			/* Iterate for each mount entry */
+			while ((mnt = getmntent(f)) != NULL) {
+				if (strcmp(mnt->mnt_type, "btrfs"))
+					continue;
+
+				if (!strcmp(mnt->mnt_dir, fullpath))
+					continue;
+
+				c = strstr(mnt->mnt_dir, fullpath);
+				if (c != mnt->mnt_dir)
+					continue;
+
+				/* If fsid is different, skip it */
+				ret = get_fsid(mnt->mnt_dir, fsid2, 1);
+				if (ret < 0) {
+					/*
+					 * ENOENT may happen when mount is
+					 * stacked
+					 */
+					if (errno == EACCES || errno == ENOENT)
+						continue;
+					error("failed to get fsid: %m");
+					free(fullpath);
+					free_subvol_list(subvols);
+					return NULL;
+				}
+				if (uuid_compare(fsid, fsid2))
+					continue;
+
+				fd2 = btrfs_open_dir(mnt->mnt_dir,
+						     &dirstream, 1);
+				if (fd2 < 0) {
+					error("cannot open '%s': %m",
+							mnt->mnt_dir);
+					free(fullpath);
+					free_subvol_list(subvols);
+					return NULL;
+				}
+				get_subvols_info(&subvols, filter_set,
+						fd2, 0, &capacity,
+						(absolute_path ? mnt->mnt_dir :
+							(strlen(fullpath) == 1 ?
+							 mnt->mnt_dir + 1 :
+							 mnt->mnt_dir + strlen(fullpath) + 1)),
+						true);
+				close_file_or_dir(fd2, dirstream);
+				if (subvols == NULL) {
+					free(fullpath);
+					return NULL;
+				}
+			}
+		}
 		free(fullpath);
 	}
 
@@ -1323,6 +1411,7 @@ static int btrfs_list_subvols_print_v2(int fd,
 				    enum btrfs_list_layout layout,
 				    int is_list_all,
 				    int absolute_path,
+				    int follow_mount,
 				    const char *path,
 				    const char *raw_prefix)
 {
@@ -1332,7 +1421,7 @@ static int btrfs_list_subvols_print_v2(int fd,
 		subvols = btrfs_list_deleted_subvols(fd, filter_set);
 	else
 		subvols = btrfs_list_subvols(fd, is_list_all, absolute_path,
-					     path, filter_set);
+					     follow_mount, path, filter_set);
 	if (!subvols)
 		return -1;
 
@@ -1456,6 +1545,8 @@ static const char * const cmd_subvol_list_usage[] = {
 	"-a           print all the subvolumes in the filesystem and",
 	"             distinguish absolute and relative path with respect",
 	"             to the given <path> (require root privileges)",
+	"-f           follow mounted subvolumes below the specified path",
+	"             and list them too (only if it is the same filesystem)",
 	"",
 	"Field selection:",
 	"-p           print parent ID",
@@ -1499,6 +1590,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	int ret = -1, uerr = 0;
 	char *subvol;
 	int is_list_all = 0;
+	int follow_mount = 0;
 	int is_only_in_path = 0;
 	int absolute_path = 0;
 	DIR *dirstream = NULL;
@@ -1516,7 +1608,7 @@ static int cmd_subvol_list(int argc, char **argv)
 		};
 
 		c = getopt_long(argc, argv,
-				    "acdgopqsurARG:C:t", long_options, NULL);
+				    "acdfgopqsurARG:C:t", long_options, NULL);
 		if (c < 0)
 			break;
 
@@ -1529,6 +1621,9 @@ static int cmd_subvol_list(int argc, char **argv)
 			break;
 		case 'a':
 			is_list_all = 1;
+			break;
+		case 'f':
+			follow_mount = 1;
 			break;
 		case 'c':
 			btrfs_list_setup_print_column_v2(BTRFS_LIST_OGENERATION);
@@ -1619,6 +1714,12 @@ static int cmd_subvol_list(int argc, char **argv)
 		goto out;
 	}
 
+	if (follow_mount && (is_list_all || is_only_in_path)) {
+		ret = -1;
+		error("cannot use -f with -a or -o option");
+		goto out;
+	}
+
 	subvol = argv[optind];
 	fd = btrfs_open_dir(subvol, &dirstream, 1);
 	if (fd < 0) {
@@ -1651,7 +1752,8 @@ static int cmd_subvol_list(int argc, char **argv)
 	btrfs_list_setup_print_column_v2(BTRFS_LIST_PATH);
 
 	ret = btrfs_list_subvols_print_v2(fd, filter_set, comparer_set,
-			layout, is_list_all, absolute_path, subvol, NULL);
+			layout, is_list_all, absolute_path, follow_mount,
+			subvol, NULL);
 
 out:
 	close_file_or_dir(fd, dirstream);
