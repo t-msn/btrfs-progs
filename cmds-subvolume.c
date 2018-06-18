@@ -1127,9 +1127,37 @@ out:
 	return subvols;
 }
 
+static int add_subvol(struct subvol_list **subvols,
+		      struct listed_subvol *subvol,
+		      size_t *capacity)
+{
+	if ((*subvols)->num >= *capacity) {
+		struct subvol_list *new_subvols;
+		size_t new_capacity = max_t(size_t, 1, *capacity * 2);
+
+		new_subvols = realloc(*subvols,
+				      sizeof(*new_subvols) +
+				      new_capacity *
+				      sizeof(new_subvols->subvols[0]));
+		if (!new_subvols) {
+			error("out of memory");
+			return -1;
+		}
+
+		*subvols = new_subvols;
+		*capacity = new_capacity;
+	}
+
+	(*subvols)->subvols[(*subvols)->num] = *subvol;
+	(*subvols)->num++;
+
+	return 0;
+}
+
 static void get_subvols_info(struct subvol_list **subvols,
 			     struct btrfs_list_filter_set_v2 *filter_set,
 			     int fd,
+			     int tree_id,
 			     size_t *capacity)
 {
 	struct btrfs_util_subvolume_iterator *iter;
@@ -1137,7 +1165,7 @@ static void get_subvols_info(struct subvol_list **subvols,
 	int ret = -1;
 
 	err = btrfs_util_create_subvolume_iterator_fd(fd,
-						      BTRFS_FS_TREE_OBJECTID, 0,
+						      tree_id, 0,
 						      &iter);
 	if (err) {
 		iter = NULL;
@@ -1145,6 +1173,52 @@ static void get_subvols_info(struct subvol_list **subvols,
 		goto out;
 	}
 
+	/*
+	 * Subvolume iterator does not include the information of the
+	 * specified path/fd. So, add it first.
+	 */
+	if (!tree_id) {
+		uint64_t id;
+		struct listed_subvol subvol;
+
+		err = btrfs_util_is_subvolume_fd(fd);
+		if (err != BTRFS_UTIL_OK) {
+			if (err == BTRFS_UTIL_ERROR_NOT_SUBVOLUME) {
+				ret = 0;
+				goto skip;
+			} else {
+				ret = -1;
+				goto out;
+			}
+		}
+		err = btrfs_util_subvolume_id_fd(fd, &id);
+		if (err) {
+			ret = -1;
+			goto out;
+		}
+		if (id == BTRFS_FS_TREE_OBJECTID) {
+			/* Skip top level subvolume */
+			ret = 0;
+			goto skip;
+		}
+
+		err = btrfs_util_subvolume_info_fd(fd, 0, &subvol.info);
+		if (err) {
+			ret = -1;
+			goto out;
+		}
+
+		subvol.path = strdup(".");
+		if (!filters_match(&subvol, filter_set)) {
+			free(subvol.path);
+		} else {
+			ret = add_subvol(subvols, &subvol, capacity);
+			if (ret)
+				goto out;
+		}
+	}
+
+skip:
 	for (;;) {
 		struct listed_subvol subvol;
 
@@ -1155,33 +1229,17 @@ static void get_subvols_info(struct subvol_list **subvols,
 			break;
 		} else if (err) {
 			error_btrfs_util(err);
+			ret = -1;
 			goto out;
 		}
 
 		if (!filters_match(&subvol, filter_set)) {
 			free(subvol.path);
-			continue;
-		}
-
-		if ((*subvols)->num >= *capacity) {
-			struct subvol_list *new_subvols;
-			size_t new_capacity = max_t(size_t, 1, *capacity * 2);
-
-			new_subvols = realloc(*subvols,
-					      sizeof(*new_subvols) +
-					      new_capacity *
-					      sizeof(new_subvols->subvols[0]));
-			if (!new_subvols) {
-				error("out of memory");
+		} else {
+			ret = add_subvol(subvols, &subvol, capacity);
+			if (ret)
 				goto out;
-			}
-
-			*subvols = new_subvols;
-			*capacity = new_capacity;
 		}
-
-		(*subvols)->subvols[(*subvols)->num] = subvol;
-		(*subvols)->num++;
 	}
 
 	ret = 0;
@@ -1195,6 +1253,8 @@ out:
 }
 
 static struct subvol_list *btrfs_list_subvols(int fd,
+					      int is_list_all,
+					      const char *path,
 					      struct btrfs_list_filter_set_v2 *filter_set)
 {
 	struct subvol_list *subvols;
@@ -1207,7 +1267,11 @@ static struct subvol_list *btrfs_list_subvols(int fd,
 	}
 	subvols->num = 0;
 
-	get_subvols_info(&subvols, filter_set, fd, &capacity);
+	if (is_list_all)
+		get_subvols_info(&subvols, filter_set, fd,
+				BTRFS_FS_TREE_OBJECTID, &capacity);
+	else
+		get_subvols_info(&subvols, filter_set, fd, 0, &capacity);
 
 	return subvols;
 }
@@ -1216,20 +1280,16 @@ static int btrfs_list_subvols_print_v2(int fd,
 				    struct btrfs_list_filter_set_v2 *filter_set,
 				    struct btrfs_list_comparer_set_v2 *comp_set,
 				    enum btrfs_list_layout layout,
-				    int full_path, const char *raw_prefix)
+				    int is_list_all,
+				    const char *path,
+				    const char *raw_prefix)
 {
 	struct subvol_list *subvols;
-
-	/*
-	 * full_path hasn't done anything since 4f5ebb3ef553 ("Btrfs-progs: fix
-	 * to make list specified directory's subvolumes work"). See
-	 * https://www.spinics.net/lists/linux-btrfs/msg69820.html
-	 */
 
 	if (filter_set->only_deleted)
 		subvols = btrfs_list_deleted_subvols(fd, filter_set);
 	else
-		subvols = btrfs_list_subvols(fd, filter_set);
+		subvols = btrfs_list_subvols(fd, is_list_all, path, filter_set);
 	if (!subvols)
 		return -1;
 
@@ -1325,6 +1385,14 @@ static int btrfs_list_parse_filter_string_v2(char *opt_arg,
 	return 0;
 }
 
+static bool is_root(void)
+{
+	uid_t uid;
+
+	uid = geteuid();
+	return (uid == 0);
+}
+
 /*
  * Naming of options:
  * - uppercase for filters and sort options
@@ -1333,12 +1401,18 @@ static int btrfs_list_parse_filter_string_v2(char *opt_arg,
 static const char * const cmd_subvol_list_usage[] = {
 	"btrfs subvolume list [options] <path>",
 	"List subvolumes and snapshots in the filesystem.",
+	"By default, this only lists the subvolumes under <path>,",
+	"including <path> itself (except top-level subvolume).",
+	"",
+	"This command had required root privileges. From kernel 4.18,",
+	"non privileged user can call this too. Also from kernel 4.18,",
+	"It is possible to specify non-subvolume directory as <path>.",
 	"",
 	"Path filtering:",
 	"-o           print only subvolumes below specified path",
 	"-a           print all the subvolumes in the filesystem and",
 	"             distinguish absolute and relative path with respect",
-	"             to the given <path>",
+	"             to the given <path> (require root privileges)",
 	"",
 	"Field selection:",
 	"-p           print parent ID",
@@ -1484,6 +1558,12 @@ static int cmd_subvol_list(int argc, char **argv)
 		goto out;
 	}
 
+	if (is_list_all && !is_root()) {
+		ret = -1;
+		error("only root can use -a option");
+		goto out;
+	}
+
 	subvol = argv[optind];
 	fd = btrfs_open_dir(subvol, &dirstream, 1);
 	if (fd < 0) {
@@ -1516,7 +1596,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	btrfs_list_setup_print_column_v2(BTRFS_LIST_PATH);
 
 	ret = btrfs_list_subvols_print_v2(fd, filter_set, comparer_set,
-			layout, !is_list_all && !is_only_in_path, NULL);
+			layout, is_list_all, subvol, NULL);
 
 out:
 	close_file_or_dir(fd, dirstream);
