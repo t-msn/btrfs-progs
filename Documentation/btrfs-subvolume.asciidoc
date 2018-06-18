@@ -116,7 +116,7 @@ or at mount time via the subvolid= option.
 +
 Path filtering;;
 -o::::
-print only subvolumes below specified <path>.
+print only subvolumes which the subvolume of <path> contains.
 -a::::
 print all the subvolumes in the filesystem, including subvolumes
 which cannot be accessed from current mount point.

@@ -1552,7 +1552,7 @@ static const char * const cmd_subvol_list_usage[] = {
 	"It is possible to specify non-subvolume directory as <path>.",
 	"",
 	"Path filtering:",
-	"-o           print only subvolumes below specified path",
+	"-o           print only subvolumes which the subvolume of <path> contains",
 	"-a           print all the subvolumes in the filesystem.",
 	"             path to be shown is relative to the top-level",
 	"             subvolume (require root privileges)",
@@ -1607,7 +1607,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	int follow_mount = 0;
 	int sort = 0;
 	int no_sort = 0;
-	int is_only_in_path = 0;
+	int is_only_child = 0;
 	int absolute_path = 0;
 	DIR *dirstream = NULL;
 	enum btrfs_list_layout layout = BTRFS_LIST_LAYOUT_DEFAULT;
@@ -1654,7 +1654,7 @@ static int cmd_subvol_list(int argc, char **argv)
 			btrfs_list_setup_print_column_v2(BTRFS_LIST_GENERATION);
 			break;
 		case 'o':
-			is_only_in_path = 1;
+			is_only_child = 1;
 			break;
 		case 't':
 			layout = BTRFS_LIST_LAYOUT_TABLE;
@@ -1735,7 +1735,7 @@ static int cmd_subvol_list(int argc, char **argv)
 		goto out;
 	}
 
-	if (follow_mount && (is_list_all || is_only_in_path)) {
+	if (follow_mount && (is_list_all || is_only_child)) {
 		ret = -1;
 		error("cannot use -f with -a or -o option");
 		goto out;
@@ -1763,7 +1763,7 @@ static int cmd_subvol_list(int argc, char **argv)
 	if (ret)
 		goto out;
 
-	if (is_only_in_path)
+	if (is_only_child)
 		btrfs_list_setup_filter_v2(&filter_set,
 					BTRFS_LIST_FILTER_TOPID_EQUAL,
 					top_id);
