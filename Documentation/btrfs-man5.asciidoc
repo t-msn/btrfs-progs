@@ -472,7 +472,9 @@ root user can do that.
 NOTE: historically, any user could create a snapshot even if he was not owner
 of the source subvolume, the subvolume deletion has been restricted for that
 reason. The subvolume creation has been restricted but this mount option is
-still required. This is a usability issue and will be addressed in the future.
+still required. This is a usability issue and therefore
+Since 4.18, rmdir syscall can delete an empty subvolume just like an ordinary
+directory (See 'rmdir_subvol' feature in 'FILESYSTEM FEATURES').
 
 DEPRECATED MOUNT OPTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -612,6 +614,11 @@ the filesystem contains or contained a raid56 profile of block groups
 +
 reduced-size metadata for extent references, saves a few percent of metadata
 
+*rmdir_subvol*::
+(since: 4.18)
++
+indicate that rmdir syscall can delete an empty subvolume just like an ordinary
+directory. This feature only depends on the kernel version.
 
 FILESYSTEM LIMITS
 -----------------
