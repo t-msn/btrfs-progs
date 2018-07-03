@@ -388,12 +388,13 @@ chosen, which is 'v1'.
 *ssd*::
 *ssd_spread*::
 *nossd*::
+*nossd_spread*::
 (default: SSD autodetected)
 +
 Options to control SSD allocation schemes.  By default, BTRFS will
 enable or disable SSD optimizations depending on status of a device with
 respect to rotational or non-rotational type. This is determined by the
-contents of '/sys/block/DEV/queue/rotational'). If it is 1, the 'ssd' option is
+contents of '/sys/block/DEV/queue/rotational'). If it is 0, the 'ssd' option is
 turned on.  The option 'nossd' will disable the autodetection.
 +
 The optimizations make use of the absence of the seek penalty that's inherent
@@ -411,7 +412,7 @@ fragmentation. The layout tuning has been kept intact for the option
 The 'ssd_spread' mount option attempts to allocate into bigger and aligned
 chunks of unused space, and may perform better on low-end SSDs.  'ssd_spread'
 implies 'ssd', enabling all other SSD heuristics as well. The option 'nossd'
-will disable all SSD options.
+will disable all SSD options while 'nossd_spread' only disables 'ssd_spread'.
 
 *subvol='path'*::
 Mount subvolume from 'path' rather than the toplevel subvolume. The
