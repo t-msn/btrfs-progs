@@ -300,6 +300,7 @@ which will effectively start the inode numbers from the beginning again.
 (default: on, even read-only)
 +
 Enable/disable log replay at mount time. See also 'treelog'.
+Note that 'nologreplay' is the same as 'norecovery'.
 +
 WARNING: currently, the tree log is replayed even with a read-only mount! To
 disable that behaviour, mount also with 'nologreplay'.
@@ -336,7 +337,7 @@ inlined files).
 (since: 4.5, default: off)
 +
 Do not attempt any data recovery at mount time. This will disable 'logreplay'
-and avoids other write operations.
+and avoids other write operations. This option is the same as 'nologreplay'
 +
 NOTE: The opposite option 'recovery' used to have different meaning but was
 changed for consistency with other filesystems, where 'norecovery' is used for
